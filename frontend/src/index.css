@@ -1,0 +1,40 @@
+:root {
+  --ink: #1f2a26;
+  --muted: #5d6a64;
+  --sand: #f3eee4;
+  --paper: #fffcf7;
+  --line: #e4ddd0;
+  --terracotta: #c45c26;
+  --sage: #3d6b5a;
+  --sage-soft: #e5f0ea;
+  --heading: Georgia, 'Times New Roman', serif;
+  --sans: 'Segoe UI', system-ui, sans-serif;
+
+  font-family: var(--sans);
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--ink);
+  background: var(--sand);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
