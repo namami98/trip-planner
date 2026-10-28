@@ -16,8 +16,11 @@ __pycache__/
 
 # Environment (keep examples)
 .env
+.env.*
 .env.local
 *.local
+!.env.example
+!**/.env.example
 
 # Logs and OS
 logs/

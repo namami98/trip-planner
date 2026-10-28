@@ -14,13 +14,36 @@ const INTERESTS = [
 
 type ApiStatus = 'checking' | 'ok' | 'offline'
 
+type Activity = {
+  time_of_day: string
+  name: string
+  description: string
+  estimated_cost_usd: number
+}
+
+type ItineraryDay = {
+  day: number
+  date: string
+  title: string
+  activities: Activity[]
+}
+
+type Itinerary = {
+  destination: string
+  summary: string
+  total_estimated_cost_usd: number
+  days: ItineraryDay[]
+}
+
 function App() {
   const [destination, setDestination] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [budget, setBudget] = useState('')
   const [interests, setInterests] = useState<string[]>(['Food', 'Culture'])
-  const [demoMessage, setDemoMessage] = useState('')
+  const [itinerary, setItinerary] = useState<Itinerary | null>(null)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
 
   useEffect(() => {
@@ -50,21 +73,48 @@ function App() {
     )
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setErrorMessage('')
+    setItinerary(null)
+    setIsGenerating(true)
 
-    const place = destination.trim() || 'your destination'
-    const dates =
-      startDate && endDate
-        ? `${startDate} to ${endDate}`
-        : 'your selected dates'
-    const spend = budget.trim() ? `$${budget.trim()}` : 'your budget'
-    const focus =
-      interests.length > 0 ? interests.join(', ') : 'a mix of experiences'
+    try {
+      const response = await fetch(`${API_URL}/itinerary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: destination.trim(),
+          start_date: startDate,
+          end_date: endDate,
+          budget: Number(budget),
+          interests,
+        }),
+      })
 
-    setDemoMessage(
-      `Demo itinerary for ${place} (${dates}). Estimated budget ${spend}, focused on ${focus}. Gemini is not connected yet — this is a placeholder so you can test the form.`,
-    )
+      const data = (await response.json().catch(() => null)) as
+        | Itinerary
+        | { detail?: string | Array<{ msg?: string }> }
+        | null
+
+      if (!response.ok) {
+        throw new Error(readErrorDetail(data) || `Request failed (${response.status})`)
+      }
+
+      if (!data || !('days' in data) || !Array.isArray(data.days)) {
+        throw new Error('The API returned an unexpected itinerary response.')
+      }
+
+      setItinerary(data)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Could not generate an itinerary. Please try again.'
+      setErrorMessage(message)
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   return (
@@ -133,7 +183,7 @@ function App() {
             <input
               type="number"
               name="budget"
-              min="0"
+              min="1"
               step="50"
               placeholder="2500"
               value={budget}
@@ -162,19 +212,78 @@ function App() {
             </div>
           </fieldset>
 
-          <button type="submit" className="generate">
-            Generate Itinerary
+          <button type="submit" className="generate" disabled={isGenerating}>
+            {isGenerating ? 'Generating…' : 'Generate Itinerary'}
           </button>
 
-          {demoMessage ? (
-            <p className="demo" role="status">
-              {demoMessage}
+          {isGenerating ? (
+            <p className="notice" role="status">
+              Creating a day-by-day itinerary. This can take a few seconds.
+            </p>
+          ) : null}
+
+          {errorMessage ? (
+            <p className="error" role="alert">
+              {errorMessage}
             </p>
           ) : null}
         </form>
+
+        {itinerary ? (
+          <section className="itinerary" aria-live="polite">
+            <h2>{itinerary.destination}</h2>
+            <p className="summary">{itinerary.summary}</p>
+            <p className="cost">
+              Estimated total: ${Math.round(itinerary.total_estimated_cost_usd)}
+            </p>
+            {itinerary.days.map((day) => (
+              <article key={`${day.day}-${day.date}`} className="day">
+                <h3>
+                  Day {day.day}
+                  {day.date ? ` · ${day.date}` : ''}
+                  {day.title ? ` — ${day.title}` : ''}
+                </h3>
+                <ul>
+                  {day.activities.map((activity, index) => (
+                    <li key={`${day.day}-${activity.name}-${index}`}>
+                      <strong>
+                        {activity.time_of_day}: {activity.name}
+                      </strong>
+                      <p>{activity.description}</p>
+                      <span>
+                        About ${Math.round(activity.estimated_cost_usd)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </section>
+        ) : null}
       </main>
     </div>
   )
+}
+
+function readErrorDetail(
+  data: Itinerary | { detail?: string | Array<{ msg?: string }> } | null,
+): string {
+  if (!data || typeof data !== 'object' || !('detail' in data) || data.detail == null) {
+    return ''
+  }
+
+  if (typeof data.detail === 'string') {
+    return data.detail
+  }
+
+  if (Array.isArray(data.detail)) {
+    return data.detail
+      .map((item) => item.msg)
+      .filter(Boolean)
+      .join(' ')
+  }
+
+  return ''
 }
 
 export default App
